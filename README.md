@@ -8,7 +8,7 @@
 
 #### Установка
 
-- Поместите файлы в директорию "wp-content/plugins" в соответствии с их архитектурой
+- Поместите файл в директорию "wp-content/plugins/rbkmoney-cms-wp-woo-commerce" или скачайте zip архив
 - Включите плагин в разделе Settings -> Store -> Payments (wp-admin/options-general.php?page=wpsc-settings&tab=gateway).
 
 
