@@ -8,8 +8,8 @@
 
 #### Установка
 
-- Поместите файл в директорию "wp-content/plugins/rbkmoney-cms-wp-woo-commerce" или скачайте zip архив
-- Включите плагин в разделе Settings -> Store -> Payments (wp-admin/options-general.php?page=wpsc-settings&tab=gateway).
+- Скачайте zip-файл с плагином из раздела releases
+- Загрузите zip-файл с плагином и активируйте его из панели управления Wordpress
 
 
 #### Для начала приема платежей на Вашем сайте необходимо:
