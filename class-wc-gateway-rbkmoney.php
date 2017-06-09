@@ -105,6 +105,19 @@ function rbkmoney_add_gateway_class()
 
         const EVENT_TYPE = 'eventType';
 
+        // EVENT TYPE INVOICE
+        const EVENT_TYPE_INVOICE_CREATED = 'InvoiceCreated';
+        const EVENT_TYPE_INVOICE_PAID = 'InvoicePaid';
+        const EVENT_TYPE_INVOICE_CANCELLED = 'InvoiceCancelled';
+        const EVENT_TYPE_INVOICE_FULFILLED = 'InvoiceFulfilled';
+
+        // EVENT TYPE PAYMENT
+        const EVENT_TYPE_PAYMENT_STARTED = 'PaymentStarted';
+        const EVENT_TYPE_PAYMENT_PROCESSED = 'PaymentProcessed';
+        const EVENT_TYPE_PAYMENT_CAPTURED = 'PaymentCaptured';
+        const EVENT_TYPE_PAYMENT_CANCELLED = 'PaymentCancelled';
+        const EVENT_TYPE_PAYMENT_FAILED = 'PaymentFailed';
+
         const INVOICE = 'invoice';
         const INVOICE_ID = 'id';
         const INVOICE_SHOP_ID = 'shopID';
@@ -187,7 +200,7 @@ function rbkmoney_add_gateway_class()
          */
         public function thankyou_page()
         {
-            if(isset($_GET['status']) && $_GET['status'] == 'success') {
+            if (isset($_GET['status']) && $_GET['status'] == 'success') {
                 WC()->session->destroy_session();
                 echo "Оплата принята";
                 return;
@@ -218,7 +231,7 @@ function rbkmoney_add_gateway_class()
 
 
             $style = !empty($this->get_option('form_css_button')) ? '<style>' . $this->get_option('form_css_button') . '</style>' : '';
-            $form = '<form action="' . $this->get_return_url($order).'&status=success' . '" method="POST">
+            $form = '<form action="' . $this->get_return_url($order) . '&status=success' . '" method="POST">
                     <script src="' . static::PAYMENT_FORM_URL . '" class="rbkmoney-checkout"
                     data-invoice-id="' . $invoice_id . '"
                     data-invoice-access-token="' . $access_token . '"
@@ -265,7 +278,7 @@ function rbkmoney_add_gateway_class()
             }
 
             $signature = $this->url_safe_b64decode($params_signature[static::SIGNATURE_DIGEST]);
-            if (!$this->verification_signature($content, $signature, $this->get_option('callback_public_key'))) {
+            if (!$this->verification_signature($content, $signature, $this->_getPublicKey())) {
                 $message = 'Webhook notification signature mismatch';
                 $this->output($message, $logs);
             }
@@ -308,14 +321,21 @@ function rbkmoney_add_gateway_class()
                 }
             }
 
-            if ($order->status !== 'completed') {
+            $allowed_event_types = [static::EVENT_TYPE_INVOICE_PAID, static::EVENT_TYPE_INVOICE_CANCELLED];
+            $final_statuses = ['completed', 'cancelled'];
+            if (!in_array($order->status, $final_statuses) && in_array($data[static::EVENT_TYPE], $allowed_event_types)) {
                 $order->add_order_note(sprintf(__('Payment approved (invoice ID: %1$s)', $this->id), $data[static::INVOICE][static::INVOICE_ID]));
                 $order->payment_complete($data[static::INVOICE][static::INVOICE_ID]);
                 $message = 'Payment approved, invoice ID: ' . $data[static::INVOICE][static::INVOICE_ID];
-                $this->output($message, $logs);
+                $this->output($message, $logs, self::HTTP_CODE_OK);
             }
 
             exit();
+        }
+
+        private function _getPublicKey()
+        {
+            return '-----BEGIN PUBLIC KEY-----' . PHP_EOL . $this->get_option('callback_public_key') . PHP_EOL . '-----END PUBLIC KEY-----';
         }
 
         private function output($message, &$logs, $header = self::HTTP_CODE_BAD_REQUEST)
