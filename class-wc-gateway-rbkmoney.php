@@ -225,13 +225,20 @@ function rbkmoney_add_gateway_class()
                 exit();
             }
 
-            $data_logo = !empty($this->get_option('form_path_logo')) ? 'data-logo="' . strip_tags($this->get_option('form_path_logo')) . '"' : '';
-            $company_name = !empty($this->get_option('form_company_name')) ? 'data-name="' . strip_tags($this->get_option('form_company_name')) . '"' : '';
-            $button_label = !empty($this->get_option('form_button_label')) ? 'data-label="' . strip_tags($this->get_option('form_button_label')) . '"' : '';
-            $description = !empty($this->get_option('form_description')) ? 'data-description="' . strip_tags($this->get_option('form_description')) . '"' : '';
+            $form_path_logo = $this->get_option('form_path_logo');
+            $data_logo = !empty($form_path_logo) ? 'data-logo="' . strip_tags($form_path_logo) . '"' : '';
 
+            $form_company_name = $this->get_option('form_company_name');
+            $company_name = !empty($form_company_name) ? 'data-name="' . strip_tags($form_company_name) . '"' : '';
 
-            $style = !empty($this->get_option('form_css_button')) ? '<style>' . strip_tags($this->get_option('form_css_button')) . '</style>' : '';
+            $form_button_label = $this->get_option('form_button_label');
+            $button_label = !empty($form_button_label) ? 'data-label="' . strip_tags($form_button_label) . '"' : '';
+
+            $form_description = $this->get_option('form_description');
+            $description = !empty($form_description) ? 'data-description="' . strip_tags($form_description) . '"' : '';
+
+            $form_css_button = $this->get_option('form_css_button');
+            $style = !empty($form_css_button) ? '<style>' . strip_tags($form_css_button) . '</style>' : '';
             $form = '<form action="' . $this->get_return_url($order) . '&status=success' . '" method="POST">
                     <script src="' . static::PAYMENT_FORM_URL . '" class="rbkmoney-checkout"
                     data-invoice-id="' . $invoice_id . '"
@@ -336,7 +343,8 @@ function rbkmoney_add_gateway_class()
 
         private function _getPublicKey()
         {
-            return '-----BEGIN PUBLIC KEY-----' . PHP_EOL . $this->get_option('callback_public_key') . PHP_EOL . '-----END PUBLIC KEY-----';
+            $callback_public_key = $this->get_option('callback_public_key');
+            return '-----BEGIN PUBLIC KEY-----' . PHP_EOL . $callback_public_key . PHP_EOL . '-----END PUBLIC KEY-----';
         }
 
         private function output($message, &$logs, $header = self::HTTP_CODE_BAD_REQUEST)
