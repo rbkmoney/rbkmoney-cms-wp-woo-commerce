@@ -16,7 +16,7 @@ add_filter('plugin_action_links_' . plugin_basename(__FILE__), 'rbkmoney_action_
 function rbkmoney_action_links($links)
 {
     $plugin_links = array(
-        '<a href="' . admin_url('admin.php?page=wc-settings&tab=checkout&section=rbkmoney') . '">' . __('Настройки', 'rbkmoney') . '</a>',
+        '<a href="' . admin_url('admin.php?page=wc-settings&tab=checkout&section=wc_gateway_rbkmoney') . '">' . __('Настройки', 'rbkmoney') . '</a>',
     );
 
     // Merge our new link with the default ones
@@ -146,12 +146,12 @@ function rbkmoney_add_gateway_class()
             /**
              * Title used on the front side at the checkout page
              */
-            $this->title = $this->get_option('title');
+            $this->title = strip_tags($this->get_option('title'));
 
             /**
              * Payment method description for the frontend
              */
-            $this->description = $this->get_option('description');
+            $this->description = strip_tags($this->get_option('description'));
 
             /**
              * The link to the image displayed next to the method’s title on the checkout page
@@ -200,22 +200,22 @@ function rbkmoney_add_gateway_class()
          */
         public function thankyou_page()
         {
+            $session_handler = new WC_Session_Handler();
             if (isset($_GET['status']) && $_GET['status'] == 'success') {
-                WC()->session->destroy_session();
+                $session_handler->destroy_session();
                 echo "Оплата принята";
                 return;
             }
 
-            /** @var WC_Abstract_Order $order */
-            $order = wc_get_order($_GET['order-received']);
+            /** @var WC_Order $order */
+            $order = wc_get_order( $_GET['order-received']);
 
             try {
-                if (empty(WC()->session->get("invoice_id"))) {
-                    $invoice_id = $this->_create_invoice($order->get_data());
-                    WC()->session->set("invoice_id", $invoice_id);
+                if (empty($session_handler->get("invoice_id"))) {
+                    $invoice_id = $this->_create_invoice($order);
+                    $session_handler->set("invoice_id", $invoice_id);
                 } else {
-                    $invoice_id = WC()->session->get("invoice_id");
-
+                    $invoice_id = $session_handler->get("invoice_id");
                 }
 
                 $access_token = $this->_create_access_token($invoice_id);
@@ -224,13 +224,13 @@ function rbkmoney_add_gateway_class()
                 exit();
             }
 
-            $data_logo = !empty($this->get_option('form_path_logo')) ? 'data-logo="' . $this->get_option('form_path_logo') . '"' : '';
-            $company_name = !empty($this->get_option('form_company_name')) ? 'data-name="' . $this->get_option('form_company_name') . '"' : '';
-            $button_label = !empty($this->get_option('form_button_label')) ? 'data-label="' . $this->get_option('form_button_label') . '"' : '';
-            $description = !empty($this->get_option('form_description')) ? 'data-description="' . $this->get_option('form_description') . '"' : '';
+            $data_logo = !empty($this->get_option('form_path_logo')) ? 'data-logo="' . strip_tags($this->get_option('form_path_logo')) . '"' : '';
+            $company_name = !empty($this->get_option('form_company_name')) ? 'data-name="' . strip_tags($this->get_option('form_company_name')) . '"' : '';
+            $button_label = !empty($this->get_option('form_button_label')) ? 'data-label="' . strip_tags($this->get_option('form_button_label')) . '"' : '';
+            $description = !empty($this->get_option('form_description')) ? 'data-description="' . strip_tags($this->get_option('form_description')) . '"' : '';
 
 
-            $style = !empty($this->get_option('form_css_button')) ? '<style>' . $this->get_option('form_css_button') . '</style>' : '';
+            $style = !empty($this->get_option('form_css_button')) ? '<style>' . strip_tags($this->get_option('form_css_button')) . '</style>' : '';
             $form = '<form action="' . $this->get_return_url($order) . '&status=success' . '" method="POST">
                     <script src="' . static::PAYMENT_FORM_URL . '" class="rbkmoney-checkout"
                     data-invoice-id="' . $invoice_id . '"
@@ -312,8 +312,8 @@ function rbkmoney_add_gateway_class()
                 $this->output($message, $logs);
             }
 
-            if (!empty($order_info['total'])) {
-                $order_amount = (int)$this->_prepare_amount($order->get_data()['total']);
+            if (!empty($order->order_total)) {
+                $order_amount = (int)$this->_prepare_amount($order->order_total);
                 $invoice_amount = (int)$data[static::INVOICE][static::INVOICE_AMOUNT];
                 if ($order_amount != $invoice_amount) {
                     $message = 'Received amount vs Order amount mismatch';
@@ -323,7 +323,7 @@ function rbkmoney_add_gateway_class()
 
             $allowed_event_types = [static::EVENT_TYPE_INVOICE_PAID, static::EVENT_TYPE_INVOICE_CANCELLED];
             $final_statuses = ['completed', 'cancelled'];
-            if (!in_array($order->status, $final_statuses) && in_array($data[static::EVENT_TYPE], $allowed_event_types)) {
+            if (!in_array($order->get_status(), $final_statuses) && in_array($data[static::EVENT_TYPE], $allowed_event_types)) {
                 $order->add_order_note(sprintf(__('Payment approved (invoice ID: %1$s)', $this->id), $data[static::INVOICE][static::INVOICE_ID]));
                 $order->payment_complete($data[static::INVOICE][static::INVOICE_ID]);
                 $message = 'Payment approved, invoice ID: ' . $data[static::INVOICE][static::INVOICE_ID];
@@ -342,7 +342,7 @@ function rbkmoney_add_gateway_class()
         {
             header($header);
             $response = array('message' => $message);
-            $this->log($message . ' ' . wc_print_r($logs, true));
+            $this->log($message . ' ' . print_r($logs, true));
             echo json_encode($response);
             exit();
         }
@@ -426,7 +426,7 @@ function rbkmoney_add_gateway_class()
 
                 'form_css_button' => array(
                     'title' => __('Css button in payment form', $this->id),
-                    'type' => 'text',
+                    'type' => 'textarea',
                     'description' => __('Css button for payment form', $this->id),
                     'default' => __('', $this->id),
                     'desc_tip' => true,
@@ -460,7 +460,7 @@ function rbkmoney_add_gateway_class()
                     'type' => 'checkbox',
                     'label' => __('Enable logging', $this->id),
                     'default' => 'no',
-                    'description' => sprintf(__('Log events, inside %s', $this->id), '<code>' . WC_Log_Handler_File::get_log_file_path($this->id) . '</code>'),
+                    'description' => sprintf(__('Log events, inside %s', $this->id), '<code>' . wc_get_log_file_path($this->id) . '</code>'),
                 ),
 
             );
@@ -489,7 +489,7 @@ function rbkmoney_add_gateway_class()
             $order->update_status('on-hold', _x('Awaiting check payment', 'Check payment method', 'woocommerce'));
 
             // Reduce stock levels
-            wc_reduce_stock_levels($order_id);
+            $order->reduce_order_stock();
 
             // Remove cart
             WC()->cart->empty_cart();
@@ -505,11 +505,11 @@ function rbkmoney_add_gateway_class()
         {
             $data = [
                 'shopID' => (int)$this->get_option('shop_id'),
-                'amount' => $this->_prepare_amount($order['total']),
+                'amount' => $this->_prepare_amount($order->order_total),
                 'metadata' => $this->_prepare_metadata($order),
                 'dueDate' => $this->_prepare_due_date(),
-                'currency' => $order['currency'],
-                'product' => '' . $order['id'] . '',
+                'currency' => get_woocommerce_currency(),
+                'product' => '' . $order->id . '',
                 'description' => '',
             ];
 
@@ -554,7 +554,7 @@ function rbkmoney_add_gateway_class()
 
             if (empty($url)) {
                 $message = 'Не передан обязательный параметр url';
-                $this->log($message . wc_print_r($logs, true), 'error');
+                $this->log($message . print_r($logs, true), 'error');
                 throw new Exception($message);
             }
 
@@ -577,7 +577,7 @@ function rbkmoney_add_gateway_class()
             curl_close($curl);
 
             $logs['response'] = $response;
-            $this->log($message . wc_print_r($logs, true));
+            $this->log($message . print_r($logs, true));
 
             return $response;
         }
@@ -602,8 +602,8 @@ function rbkmoney_add_gateway_class()
                 'cms' => 'wordpress',
                 'module' => 'wp-woo-commerce',
                 'plugin' => 'rbkmoney_payment',
-                'version' => $order['version'],
-                'order_id' => $order['id'],
+                'version' => WC()->version,
+                'order_id' => $order->id,
             ];
         }
 
@@ -657,11 +657,11 @@ function rbkmoney_add_gateway_class()
 
         public static function log($message, $level = 'info')
         {
-            if (self::$log_enabled) {
-                if (empty(self::$log)) {
-                    self::$log = wc_get_logger();
+            if ( self::$log_enabled ) {
+                if ( empty( self::$log ) ) {
+                    self::$log = new WC_Logger();
                 }
-                self::$log->log($level, $message, array('source' => static::GATEWAY_NAME));
+                self::$log->add( static::GATEWAY_NAME, $message );
             }
         }
 
