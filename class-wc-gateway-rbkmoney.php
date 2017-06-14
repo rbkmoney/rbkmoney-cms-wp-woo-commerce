@@ -211,7 +211,8 @@ function rbkmoney_add_gateway_class()
             $order = wc_get_order( $_GET['order-received']);
 
             try {
-                if (empty($session_handler->get("invoice_id"))) {
+                $invoice_id = $session_handler->get("invoice_id");
+                if (empty($invoice_id)) {
                     $invoice_id = $this->_create_invoice($order);
                     $session_handler->set("invoice_id", $invoice_id);
                 } else {
