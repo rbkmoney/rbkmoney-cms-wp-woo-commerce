@@ -207,8 +207,9 @@ function rbkmoney_add_gateway_class()
                 return;
             }
 
+            $order_id = wc_get_order_id_by_order_key($_GET['key']);
             /** @var WC_Order $order */
-            $order = wc_get_order( $_GET['order-received']);
+            $order = wc_get_order($order_id);
 
             try {
                 $invoice_id = $session_handler->get("invoice_id");
