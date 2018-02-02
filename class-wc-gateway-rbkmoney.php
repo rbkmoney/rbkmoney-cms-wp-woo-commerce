@@ -201,11 +201,9 @@ function rbkmoney_add_gateway_class()
         public function thankyou_page()
         {
             $session_handler = new WC_Session_Handler();
+
             if (isset($_GET['status']) && $_GET['status'] == 'success') {
-                $session_handler->cleanup_sessions();
                 $session_handler->destroy_session();
-                $session_handler->set("invoice_id", "");
-                $session_handler->set("access_token", "");
                 echo "<b>Оплата принята</b>";
                 return;
             }
@@ -215,21 +213,21 @@ function rbkmoney_add_gateway_class()
             /** @var WC_Abstract_Order $order */
             $order = wc_get_order($order_id);
 
-
             try {
-                $invoice_id = $session_handler->get("invoice_id");
-                $access_token = $session_handler->get("access_token");
+                $invoice_id = $session_handler->get($order_id . "invoice_id");
+                $access_token = $session_handler->get($order_id . "access_token");
 
                 if (empty($invoice_id)) {
                     $response = $this->_create_invoice($order);
                     $invoice_id = $response["invoice"]["id"];
-                    $session_handler->set("invoice_id", $invoice_id);
+                    $session_handler->set($order_id . "invoice_id", $invoice_id);
 
                     $access_token = $response["invoiceAccessToken"]["payload"];
-                    $session_handler->set("access_token", $access_token);
+                    $session_handler->set($order_id . "access_token", $access_token);
                 }
             } catch (Exception $ex) {
                 echo "Что-то пошло не так! Мы уже знаем и работаем над этим!";
+                $this->log("Ошибка при создании инвойса" . ' ' . wc_print_r($ex, true));
                 exit();
             }
 
@@ -473,6 +471,7 @@ function rbkmoney_add_gateway_class()
         public function process_payment($order_id)
         {
             $order = wc_get_order($order_id);
+
 
             // Mark as on-hold (we're awaiting the cheque)
             $order->update_status('on-hold', _x('Awaiting check payment', 'Check payment method', 'woocommerce'));
