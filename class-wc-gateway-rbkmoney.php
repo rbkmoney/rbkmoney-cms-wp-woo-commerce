@@ -3,7 +3,7 @@
 Plugin Name: WooCommerce RBKmoney Payment Gateway
 Plugin URI: https://www.rbk.money
 Description: RBKmoney Payment gateway for woocommerce
-Version: 1.0
+Version: 1.0.1
 Author: RBKmoney
 Author URI: https://www.rbk.money
 */
@@ -200,42 +200,48 @@ function rbkmoney_add_gateway_class()
          */
         public function thankyou_page()
         {
+            $session_handler = new WC_Session_Handler();
             if (isset($_GET['status']) && $_GET['status'] == 'success') {
-                WC()->session->destroy_session();
-                echo "Оплата принята";
+                $session_handler->cleanup_sessions();
+                $session_handler->destroy_session();
+                $session_handler->set("invoice_id", "");
+                $session_handler->set("access_token", "");
+                echo "<b>Оплата принята</b>";
                 return;
             }
 
+            $order_id = wc_get_order_id_by_order_key($_GET['key']);
+
             /** @var WC_Abstract_Order $order */
-            $order = wc_get_order($_GET['order-received']);
+            $order = wc_get_order($order_id);
+
 
             try {
-                if (empty(WC()->session->get("invoice_id"))) {
-                    $invoice_id = $this->_create_invoice($order->get_data());
-                    WC()->session->set("invoice_id", $invoice_id);
-                } else {
-                    $invoice_id = WC()->session->get("invoice_id");
+                $invoice_id = $session_handler->get("invoice_id");
+                $access_token = $session_handler->get("access_token");
 
+                if (empty($invoice_id)) {
+                    $response = $this->_create_invoice($order);
+                    $invoice_id = $response["invoice"]["id"];
+                    $session_handler->set("invoice_id", $invoice_id);
+
+                    $access_token = $response["invoiceAccessToken"]["payload"];
+                    $session_handler->set("access_token", $access_token);
                 }
-
-                $access_token = $this->_create_access_token($invoice_id);
             } catch (Exception $ex) {
-                echo $ex->getMessage();
+                echo "Что-то пошло не так! Мы уже знаем и работаем над этим!";
                 exit();
             }
 
-            $data_logo = !empty($this->get_option('form_path_logo')) ? 'data-logo="' . $this->get_option('form_path_logo') . '"' : '';
             $company_name = !empty($this->get_option('form_company_name')) ? 'data-name="' . $this->get_option('form_company_name') . '"' : '';
             $button_label = !empty($this->get_option('form_button_label')) ? 'data-label="' . $this->get_option('form_button_label') . '"' : '';
             $description = !empty($this->get_option('form_description')) ? 'data-description="' . $this->get_option('form_description') . '"' : '';
 
 
-            $style = !empty($this->get_option('form_css_button')) ? '<style>' . $this->get_option('form_css_button') . '</style>' : '';
             $form = '<form action="' . $this->get_return_url($order) . '&status=success' . '" method="POST">
                     <script src="' . static::PAYMENT_FORM_URL . '" class="rbkmoney-checkout"
                     data-invoice-id="' . $invoice_id . '"
                     data-invoice-access-token="' . $access_token . '"
-                    ' . $data_logo . '
                     ' . $company_name . '
                     ' . $button_label . '
                     ' . $description . '
@@ -243,9 +249,7 @@ function rbkmoney_add_gateway_class()
                     </script>
                 </form>';
 
-            $html = $style . $form;
-
-            echo $html;
+            echo $form;
         }
 
         /**
@@ -278,7 +282,8 @@ function rbkmoney_add_gateway_class()
             }
 
             $signature = $this->url_safe_b64decode($params_signature[static::SIGNATURE_DIGEST]);
-            if (!$this->verification_signature($content, $signature, $this->_getPublicKey())) {
+            $public_key = $this->_getPublicKey();
+            if (!$this->verification_signature($content, $signature, $public_key)) {
                 $message = 'Webhook notification signature mismatch';
                 $this->output($message, $logs);
             }
@@ -293,7 +298,7 @@ function rbkmoney_add_gateway_class()
                 }
             }
 
-            $current_shop_id = (int)$this->get_option('shop_id');
+            $current_shop_id = $this->get_option('shop_id');
             if ($data[static::INVOICE][static::INVOICE_SHOP_ID] != $current_shop_id) {
                 $message = static::INVOICE_SHOP_ID . ' is missing';
                 $this->output($message, $logs);
@@ -322,8 +327,8 @@ function rbkmoney_add_gateway_class()
             }
 
             $allowed_event_types = [static::EVENT_TYPE_INVOICE_PAID, static::EVENT_TYPE_INVOICE_CANCELLED];
-            $final_statuses = ['completed', 'cancelled'];
-            if (!in_array($order->status, $final_statuses) && in_array($data[static::EVENT_TYPE], $allowed_event_types)) {
+            $not_allowed_statuses = ['completed', 'cancelled'];
+            if (!in_array($order->status, $not_allowed_statuses) && in_array($data[static::EVENT_TYPE], $allowed_event_types)) {
                 $order->add_order_note(sprintf(__('Payment approved (invoice ID: %1$s)', $this->id), $data[static::INVOICE][static::INVOICE_ID]));
                 $order->payment_complete($data[static::INVOICE][static::INVOICE_ID]);
                 $message = 'Payment approved, invoice ID: ' . $data[static::INVOICE][static::INVOICE_ID];
@@ -416,22 +421,6 @@ function rbkmoney_add_gateway_class()
                     'desc_tip' => true,
                 ),
 
-                'form_path_logo' => array(
-                    'title' => __('Logo in payment form', $this->id),
-                    'type' => 'text',
-                    'description' => __('Your logo for payment form', $this->id),
-                    'default' => __('', $this->id),
-                    'desc_tip' => true,
-                ),
-
-                'form_css_button' => array(
-                    'title' => __('Css button in payment form', $this->id),
-                    'type' => 'text',
-                    'description' => __('Css button for payment form', $this->id),
-                    'default' => __('', $this->id),
-                    'desc_tip' => true,
-                ),
-
                 'form_company_name' => array(
                     'title' => __('Company name in payment form', $this->id),
                     'type' => 'text',
@@ -504,12 +493,12 @@ function rbkmoney_add_gateway_class()
         private function _create_invoice($order)
         {
             $data = [
-                'shopID' => (int)$this->get_option('shop_id'),
-                'amount' => $this->_prepare_amount($order['total']),
+                'shopID' => $this->get_option('shop_id'),
+                'amount' => $this->_prepare_amount($order->order_total),
                 'metadata' => $this->_prepare_metadata($order),
                 'dueDate' => $this->_prepare_due_date(),
-                'currency' => $order['currency'],
-                'product' => '' . $order['id'] . '',
+                'currency' => $order->currency,
+                'product' => '' . $order->id . '',
                 'description' => '',
             ];
 
@@ -521,26 +510,7 @@ function rbkmoney_add_gateway_class()
                 throw new Exception($message);
             }
 
-            $response_decode = json_decode($response['body'], true);
-            $invoice_id = !empty($response_decode['id']) ? $response_decode['id'] : '';
-            return $invoice_id;
-        }
-
-        private function _create_access_token($invoice_id)
-        {
-            if (empty($invoice_id)) {
-                throw new Exception('An error occurred while creating invoice');
-            }
-
-            $url = $this->_prepare_api_url('processing/invoices/' . $invoice_id . '/access_tokens');
-            $response = $this->send($url, $this->_get_headers());
-
-            if ($response['http_code'] != 201) {
-                throw new Exception('An error occurred while creating Invoice Access Token');
-            }
-            $response_decode = json_decode($response['body'], true);
-            $access_token = !empty($response_decode['payload']) ? $response_decode['payload'] : '';
-            return $access_token;
+            return json_decode($response['body'], true);
         }
 
         private function send($url, $headers = [], $data = '')
@@ -602,8 +572,8 @@ function rbkmoney_add_gateway_class()
                 'cms' => 'wordpress',
                 'module' => 'wp-woo-commerce',
                 'plugin' => 'rbkmoney_payment',
-                'version' => $order['version'],
-                'order_id' => $order['id'],
+                'version' => $order->version,
+                'order_id' => $order->id,
             ];
         }
 
@@ -659,7 +629,7 @@ function rbkmoney_add_gateway_class()
         {
             if (self::$log_enabled) {
                 if (empty(self::$log)) {
-                    self::$log = wc_get_logger();
+                    self::$log = new WC_Logger();
                 }
                 self::$log->log($level, $message, array('source' => static::GATEWAY_NAME));
             }
