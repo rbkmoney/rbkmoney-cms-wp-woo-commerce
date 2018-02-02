@@ -2,7 +2,7 @@
 
 Платежный плагин RBKmoney для Wordpress + WooCommerce
 
-Проверено на Wordpress 4.3.2, WooCommerce 3.0.6
+Проверено на Wordpress 4.2.15, WooCommerce 2.4.13
 
 ### Установка и настройка модуля
 
