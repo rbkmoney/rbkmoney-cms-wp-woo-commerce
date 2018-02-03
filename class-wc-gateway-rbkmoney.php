@@ -235,7 +235,7 @@ function rbkmoney_add_gateway_class()
             $button_label = !empty($this->get_option('form_button_label')) ? 'data-label="' . $this->get_option('form_button_label') . '"' : '';
             $description = !empty($this->get_option('form_description')) ? 'data-description="' . $this->get_option('form_description') . '"' : '';
 
-
+            $style = !empty($this->get_option('form_css_button')) ? '<style>' . $this->get_option('form_css_button') . '</style>' : '';
             $form = '<form action="' . $this->get_return_url($order) . '&status=success' . '" method="POST">
                     <script src="' . static::PAYMENT_FORM_URL . '" class="rbkmoney-checkout"
                     data-invoice-id="' . $invoice_id . '"
@@ -247,7 +247,9 @@ function rbkmoney_add_gateway_class()
                     </script>
                 </form>';
 
-            echo $form;
+            $html = $style . $form;
+
+            echo $html;
         }
 
         /**
@@ -415,6 +417,14 @@ function rbkmoney_add_gateway_class()
                     'title' => __('Callback public key', $this->id),
                     'type' => 'textarea',
                     'description' => __('Callback public key for handler payment notification.', $this->id),
+                    'default' => __('', $this->id),
+                    'desc_tip' => true,
+                ),
+
+                'form_css_button' => array(
+                    'title' => __('Css button in payment form', $this->id),
+                    'type' => 'textarea',
+                    'description' => __('Css button for payment form', $this->id),
                     'default' => __('', $this->id),
                     'desc_tip' => true,
                 ),
