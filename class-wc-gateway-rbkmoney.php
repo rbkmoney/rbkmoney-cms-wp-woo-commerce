@@ -340,7 +340,7 @@ function rbkmoney_add_gateway_class()
 
         private function _getPublicKey()
         {
-            return '-----BEGIN PUBLIC KEY-----' . PHP_EOL . $this->get_option('callback_public_key') . PHP_EOL . '-----END PUBLIC KEY-----';
+            return trim($this->get_option('callback_public_key'));
         }
 
         private function output($message, &$logs, $header = self::HTTP_CODE_BAD_REQUEST)
