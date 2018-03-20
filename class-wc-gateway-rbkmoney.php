@@ -231,11 +231,17 @@ function rbkmoney_add_gateway_class()
                 exit();
             }
 
-            $company_name = !empty($this->get_option('form_company_name')) ? 'data-name="' . $this->get_option('form_company_name') . '"' : '';
-            $button_label = !empty($this->get_option('form_button_label')) ? 'data-label="' . $this->get_option('form_button_label') . '"' : '';
-            $description = !empty($this->get_option('form_description')) ? 'data-description="' . $this->get_option('form_description') . '"' : '';
+            $form_company_name = $this->get_option('form_company_name');
+            $company_name = !empty($form_company_name) ? 'data-name="' . $form_company_name . '"' : '';
 
-            $style = !empty($this->get_option('form_css_button')) ? '<style>' . $this->get_option('form_css_button') . '</style>' : '';
+            $form_button_label = $this->get_option('form_button_label');
+            $button_label = !empty($form_button_label) ? 'data-label="' . $form_button_label . '"' : '';
+
+            $form_description = $this->get_option('form_description');
+            $description = !empty($form_description) ? 'data-description="' . $form_description . '"' : '';
+
+            $form_css_button = $this->get_option('form_css_button');
+            $style = !empty($form_css_button) ? '<style>' . $form_css_button . '</style>' : '';
             $form = '<form action="' . $this->get_return_url($order) . '&status=success' . '" method="POST">
                     <script src="' . static::PAYMENT_FORM_URL . '" class="rbkmoney-checkout"
                     data-invoice-id="' . $invoice_id . '"
@@ -340,7 +346,8 @@ function rbkmoney_add_gateway_class()
 
         private function _getPublicKey()
         {
-            return trim($this->get_option('callback_public_key'));
+            $callback_public_key = $this->get_option('callback_public_key');
+            return trim($callback_public_key);
         }
 
         private function output($message, &$logs, $header = self::HTTP_CODE_BAD_REQUEST)
@@ -501,8 +508,9 @@ function rbkmoney_add_gateway_class()
 
         private function _create_invoice($order)
         {
+            $shop_id = $this->get_option('shop_id');
             $data = [
-                'shopID' => $this->get_option('shop_id'),
+                'shopID' => $shop_id,
                 'amount' => $this->_prepare_amount($order->order_total),
                 'metadata' => $this->_prepare_metadata($order),
                 'dueDate' => $this->_prepare_due_date(),
@@ -594,9 +602,11 @@ function rbkmoney_add_gateway_class()
 
         private function _get_headers()
         {
+            $private_key = $this->get_option('private_key');
+
             $headers = [];
             $headers[] = 'X-Request-ID: ' . uniqid();
-            $headers[] = 'Authorization: Bearer ' . $this->get_option('private_key');
+            $headers[] = 'Authorization: Bearer ' . $private_key;
             $headers[] = 'Content-type: application/json; charset=utf-8';
             $headers[] = 'Accept: application/json';
             return $headers;
