@@ -3,7 +3,7 @@
 Plugin Name: WooCommerce RBKmoney Payment Gateway
 Plugin URI: https://www.rbk.money
 Description: RBKmoney Payment gateway for woocommerce
-Version: 1.0.1
+Version: 1.0.2
 Author: RBKmoney
 Author URI: https://www.rbk.money
 */
@@ -16,7 +16,7 @@ add_filter('plugin_action_links_' . plugin_basename(__FILE__), 'rbkmoney_action_
 function rbkmoney_action_links($links)
 {
     $plugin_links = array(
-        '<a href="' . admin_url('admin.php?page=wc-settings&tab=checkout&section=rbkmoney') . '">' . __('Настройки', 'rbkmoney') . '</a>',
+        '<a href="' . admin_url('admin.php?page=wc-settings&tab=checkout&section=wc_gateway_rbkmoney', 'rbkmoney') . '">' . __('Настройки', 'rbkmoney') . '</a>',
     );
 
     // Merge our new link with the default ones
@@ -29,8 +29,8 @@ function custom_plugin_row_meta($links, $file)
 {
     if (strpos($file, plugin_basename(__FILE__)) !== false) {
         $new_links = array(
-            'docs' => '<a href="https://rbkmoney.github.io/docs/" target="_blank">Документация</a>',
-            'docs_api' => '<a href="https://rbkmoney.github.io/api/" target="_blank">Документация по API</a>'
+            'docs' => '<a href="https://rbkmoney.github.io/docs/" target="_blank">' . __('Документация', 'rbkmoney') . '</a>',
+            'docs_api' => '<a href="https://rbkmoney.github.io/api/" target="_blank">' . __('Документация по API', 'rbkmoney') . '</a>'
         );
         $links = array_merge($links, $new_links);
     }
@@ -50,7 +50,7 @@ function rbkmoney_add_gateway_class()
      *
      * @class       WC_RBKmoney_Gateway
      * @extends     WC_Payment_Gateway
-     * @version     1.0.0
+     * @version     1.0.2
      * @package     WooCommerce/Classes/Payment
      * @author      RBKmoney
      *
@@ -70,6 +70,7 @@ function rbkmoney_add_gateway_class()
         // ------------------------------------------------------------------------
 
         const GATEWAY_NAME = 'RBKmoney';
+        const PLUGIN_VERSION = '1.0.2';
 
         /**
          * URL-s
@@ -93,15 +94,14 @@ function rbkmoney_add_gateway_class()
          */
         const HTTP_CODE_OK = 'HTTP/1.1 200 OK';
         const HTTP_CODE_CREATED = 'HTTP/1.1 201 CREATED';
+        const HTTP_CODE_CREATED_NUMBER = 201;
         const HTTP_CODE_BAD_REQUEST = 'HTTP/1.1 400 BAD REQUEST';
 
         /**
          * Constants for Callback
          */
         const SIGNATURE = 'HTTP_CONTENT_SIGNATURE';
-        const SIGNATURE_ALG = 'alg';
-        const SIGNATURE_DIGEST = 'digest';
-        const SIGNATURE_PATTERN = "|alg=(\S+);\sdigest=(.*)|i";
+        const SIGNATURE_PATTERN = "/alg=(\S+);\sdigest=/";
 
         const EVENT_TYPE = 'eventType';
 
@@ -174,7 +174,7 @@ function rbkmoney_add_gateway_class()
             /**
              * The description for the payment method shown to the admins
              */
-            $this->method_description = __('Payment RBKmoney', $this->id);
+            $this->method_description = __('Платежный модуль RBKmoney', $this->id);
 
             $this->debug = 'yes' === $this->get_option('debug', 'no');
 
@@ -204,7 +204,7 @@ function rbkmoney_add_gateway_class()
 
             if (isset($_GET['status']) && $_GET['status'] == 'success') {
                 $session_handler->destroy_session();
-                echo "<b>Оплата принята</b>";
+                echo __('<b>Оплата принята</b>', $this->id);
                 return;
             }
 
@@ -219,6 +219,7 @@ function rbkmoney_add_gateway_class()
 
                 if (empty($invoice_id)) {
                     $response = $this->_create_invoice($order);
+
                     $invoice_id = $response["invoice"]["id"];
                     $session_handler->set($order_id . "invoice_id", $invoice_id);
 
@@ -226,7 +227,7 @@ function rbkmoney_add_gateway_class()
                     $session_handler->set($order_id . "access_token", $access_token);
                 }
             } catch (Exception $ex) {
-                echo "Что-то пошло не так! Мы уже знаем и работаем над этим!";
+                echo __('Что-то пошло не так! Мы уже знаем и работаем над этим!', $this->id);
                 $this->log("Ошибка при создании инвойса" . ' ' . wc_print_r($ex, true));
                 exit();
             }
@@ -271,26 +272,16 @@ function rbkmoney_add_gateway_class()
             );
 
             if (empty($_SERVER[static::SIGNATURE])) {
-                $message = 'Webhook notification signature missing';
+                $message = __('Отсутствует подпись уведомления для Webhook', $this->id);
                 $this->output($message, $logs);
             }
             $logs['signature'] = $_SERVER[static::SIGNATURE];
 
-            $params_signature = $this->get_parameters_content_signature($_SERVER[static::SIGNATURE]);
-            if (empty($params_signature[static::SIGNATURE_ALG])) {
-                $message = 'Missing required parameter ' . static::SIGNATURE_ALG;
-                $this->output($message, $logs);
-            }
-
-            if (empty($params_signature[static::SIGNATURE_DIGEST])) {
-                $message = 'Missing required parameter ' . static::SIGNATURE_DIGEST;
-                $this->output($message, $logs);
-            }
-
-            $signature = $this->url_safe_b64decode($params_signature[static::SIGNATURE_DIGEST]);
-            $public_key = $this->_getPublicKey();
-            if (!$this->verification_signature($content, $signature, $public_key)) {
-                $message = 'Webhook notification signature mismatch';
+            $signature_from_header = $this->get_signature_from_header($_SERVER[static::SIGNATURE]);
+            $decoded_signature = $this->url_safe_b64decode($signature_from_header);
+            $public_key = $this->_get_public_key();
+            if (!$this->verification_signature($content, $decoded_signature, $public_key)) {
+                $message = __('Несоответствие сигнатуры уведомления для Webhook', $this->id);
                 $this->output($message, $logs);
             }
 
@@ -299,19 +290,19 @@ function rbkmoney_add_gateway_class()
 
             foreach ($required_fields as $field) {
                 if (empty($data[$field])) {
-                    $message = 'One or more required fields are missing';
+                    $message = __('Одно или несколько обязательный полей отсутствуют', $this->id);
                     $this->output($message, $logs);
                 }
             }
 
             $current_shop_id = $this->get_option('shop_id');
             if ($data[static::INVOICE][static::INVOICE_SHOP_ID] != $current_shop_id) {
-                $message = static::INVOICE_SHOP_ID . ' is missing';
+                $message = static::INVOICE_SHOP_ID . __(' отсутствует', $this->id);
                 $this->output($message, $logs);
             }
 
             if (empty($data[static::INVOICE][static::INVOICE_METADATA][static::ORDER_ID])) {
-                $message = static::ORDER_ID . ' is missing';
+                $message = static::ORDER_ID . __(' отсутствует', $this->id);
                 $this->output($message, $logs);
             }
 
@@ -319,7 +310,7 @@ function rbkmoney_add_gateway_class()
             $order = wc_get_order($order_id);
 
             if (empty($order)) {
-                $message = 'Order ' . $order_id . ' is missing';
+                $message = __('Заказ ', $this->id) . $order_id . __(' отсутствует', $this->id);
                 $this->output($message, $logs);
             }
 
@@ -327,7 +318,7 @@ function rbkmoney_add_gateway_class()
                 $order_amount = (int)$this->_prepare_amount($order->get_data()['total']);
                 $invoice_amount = (int)$data[static::INVOICE][static::INVOICE_AMOUNT];
                 if ($order_amount != $invoice_amount) {
-                    $message = 'Received amount vs Order amount mismatch';
+                    $message = __('Полученная сумма не соответствует сумме заказа', $this->id);
                     $this->output($message, $logs);
                 }
             }
@@ -335,16 +326,16 @@ function rbkmoney_add_gateway_class()
             $allowed_event_types = [static::EVENT_TYPE_INVOICE_PAID, static::EVENT_TYPE_INVOICE_CANCELLED];
             $not_allowed_statuses = ['completed', 'cancelled'];
             if (!in_array($order->status, $not_allowed_statuses) && in_array($data[static::EVENT_TYPE], $allowed_event_types)) {
-                $order->add_order_note(sprintf(__('Payment approved (invoice ID: %1$s)', $this->id), $data[static::INVOICE][static::INVOICE_ID]));
+                $order->add_order_note(sprintf(__('Платеж подтвержден', $this->id) . '(invoice ID: %1$s)', $data[static::INVOICE][static::INVOICE_ID]));
                 $order->payment_complete($data[static::INVOICE][static::INVOICE_ID]);
-                $message = 'Payment approved, invoice ID: ' . $data[static::INVOICE][static::INVOICE_ID];
+                $message = __('Платеж подтвержден', $this->id) . ', invoice ID: ' . $data[static::INVOICE][static::INVOICE_ID];
                 $this->output($message, $logs, self::HTTP_CODE_OK);
             }
 
             exit();
         }
 
-        private function _getPublicKey()
+        private function _get_public_key()
         {
             $callback_public_key = $this->get_option('callback_public_key');
             return trim($callback_public_key);
@@ -374,22 +365,22 @@ function rbkmoney_add_gateway_class()
             $this->form_fields = array(
 
                 'enabled' => array(
-                    'title' => __('Enable/Disable', $this->id),
+                    'title' => __('Включить/Выключить', $this->id),
                     'type' => 'checkbox',
-                    'label' => __('Enable RBKmoney Payment', $this->id),
+                    'label' => __('Включить прием платежей RBKmoney', $this->id),
                     'default' => 'yes'
                 ),
 
                 'title' => array(
-                    'title' => __('Title', $this->id),
+                    'title' => __('Заголовок', $this->id),
                     'type' => 'text',
-                    'description' => __('This controls the title for RBKmoney the payment method sees during checkout.', $this->id),
-                    'default' => __('RBKmoney', $this->id),
+                    'description' => __('Это заголовок RBKmoney, который метод оплаты видит во время проверки.', $this->id),
+                    'default' => __(static::GATEWAY_NAME, $this->id),
                     'desc_tip' => true,
                 ),
 
                 'description' => array(
-                    'title' => __('Description', $this->id),
+                    'title' => __('Описание', $this->id),
                     'type' => 'textarea',
                     'description' => __('', $this->id),
                     'default' => __('', $this->id),
@@ -399,72 +390,73 @@ function rbkmoney_add_gateway_class()
                 'shop_id' => array(
                     'title' => __('Shop ID', $this->id),
                     'type' => 'text',
-                    'description' => __('Number of the merchant\'s shop system RBKmoney', $this->id),
+                    'description' => __('Shop ID магазина в системе RBKmoney', $this->id),
                     'default' => __('1', $this->id),
                     'desc_tip' => true,
                 ),
 
                 'private_key' => array(
-                    'title' => __('Private key', $this->id),
+                    'title' => __('Приватный ключ', $this->id),
                     'type' => 'textarea',
-                    'description' => __('The private key in the system RBKmoney', $this->id),
+                    'description' => __('Приватный ключ для проведения оплаты', $this->id),
                     'default' => __('', $this->id),
                     'desc_tip' => true,
                 ),
 
                 'notify_url' => array(
-                    'title' => __('Notification URL', $this->id),
+                    'title' => __('URL для уведомлений', $this->id),
                     'type' => 'text',
-                    'description' => __('This address is to be inserted in a private office RBKmoney', $this->id),
+                    'description' => __('Этот адрес для добавления Webhook-ов в ЛК RBKmoney', $this->id),
                     'default' => __('http(s)://your-site/?wc-api=rbkmoney_callback', $this->id),
                     'desc_tip' => true,
                 ),
 
                 'callback_public_key' => array(
-                    'title' => __('Callback public key', $this->id),
+                    'title' => __('Публичный ключ', $this->id),
                     'type' => 'textarea',
-                    'description' => __('Callback public key for handler payment notification.', $this->id),
+                    'description' => __('Публичный ключ для авторизации уведомлений о статусе оплаты', $this->id),
                     'default' => __('', $this->id),
                     'desc_tip' => true,
                 ),
 
                 'form_css_button' => array(
-                    'title' => __('Css button in payment form', $this->id),
+                    'title' => __('Стилизация кнопки оплаты', $this->id),
                     'type' => 'textarea',
-                    'description' => __('Css button for payment form', $this->id),
+                    'description' => __('Стилизация кнопки оплаты', $this->id),
                     'default' => __('', $this->id),
                     'desc_tip' => true,
                 ),
 
                 'form_company_name' => array(
-                    'title' => __('Company name in payment form', $this->id),
+                    'title' => __('Название компании в платежной форме', $this->id),
                     'type' => 'text',
-                    'description' => __('Your company name for payment form', $this->id),
+                    'description' => __('Название компании в платежной форме', $this->id),
                     'default' => __('', $this->id),
                     'desc_tip' => true,
                 ),
 
                 'form_button_label' => array(
-                    'title' => __('Button label in payment form', $this->id),
+                    'title' => __('Значение кнопки в платежной форме', $this->id),
                     'type' => 'text',
-                    'description' => __('Your button label for payment form', $this->id),
+                    'description' => __('Значение кнопки в платежной форме', $this->id),
                     'default' => __('', $this->id),
                     'desc_tip' => true,
                 ),
 
                 'form_description' => array(
-                    'title' => __('Description in payment form', $this->id),
+                    'title' => __('Описание в платежной форме', $this->id),
                     'type' => 'text',
-                    'description' => __('Your description for payment form', $this->id),
+                    'description' => __('Описание в платежной форме', $this->id),
                     'default' => __('', $this->id),
                     'desc_tip' => true,
                 ),
+
                 'debug' => array(
-                    'title' => __('Debug log', $this->id),
+                    'title' => __('Журнал отладки', $this->id),
                     'type' => 'checkbox',
-                    'label' => __('Enable logging', $this->id),
+                    'label' => __('Включить логирование', $this->id),
                     'default' => 'no',
-                    'description' => sprintf(__('Log events, inside %s', $this->id), '<code>' . WC_Log_Handler_File::get_log_file_path($this->id) . '</code>'),
+                    'description' => sprintf(__('Журнал событий: %s', $this->id), '<code>' . wc_get_log_file_path($this->id) . '</code>'),
                 ),
 
             );
@@ -515,15 +507,16 @@ function rbkmoney_add_gateway_class()
                 'metadata' => $this->_prepare_metadata($order),
                 'dueDate' => $this->_prepare_due_date(),
                 'currency' => $order->currency,
-                'product' => '' . $order->id . '',
+                'product' => __('Заказ № ', $this->id) . $order->id . '',
+                'cart' => $this->_prepare_cart($order),
                 'description' => '',
             ];
 
             $url = $this->_prepare_api_url('processing/invoices');
             $response = $this->send($url, $this->_get_headers(), json_encode($data));
 
-            if ($response['http_code'] != 201) {
-                $message = 'An error occurred while creating invoice';
+            if ($response['http_code'] != static::HTTP_CODE_CREATED_NUMBER) {
+                $message = __('Произошла ошибка при создании инвойса', $this->id);
                 throw new Exception($message);
             }
 
@@ -569,6 +562,130 @@ function rbkmoney_add_gateway_class()
             return $response;
         }
 
+
+        /**
+         * Prepare cart
+         *
+         * @param $order
+         * @return array
+         */
+        private function _prepare_cart($order)
+        {
+            $items = $this->_prepare_items_for_cart($order);
+            $shipping = $this->_prepare_shipping_for_cart($order);
+
+            return array_merge($shipping, $items);
+        }
+
+        /**
+         * Prepare items for cart
+         *
+         * @param $order
+         * @return array
+         */
+        private function _prepare_items_for_cart($order)
+        {
+            $lines = array();
+            $items = $order->get_items();
+
+            foreach ($items as $product) {
+                $item = array();
+                $item['product'] = $product['name'];
+                $item['quantity'] = (int)$product['qty'];
+
+                $amount = ($product['line_total'] / $product['qty']) + ($product['line_tax'] / $product['qty']);
+                $amount = round($amount, 2);
+                if ($amount <= 0) {
+                    continue;
+                }
+                $item['price'] = $this->_prepare_amount($amount);
+
+                $tax = $product['line_tax'] / $product['line_total'] * 100;
+                $product_tax = (int)$tax;
+
+                if (!empty($product_tax)) {
+                    $taxMode = array(
+                        'type' => 'InvoiceLineTaxVAT',
+                        'rate' => $this->_get_tax_rate($product_tax),
+                    );
+                    $item['taxMode'] = $taxMode;
+                }
+                $lines[] = $item;
+            }
+
+            return $lines;
+        }
+
+        /**
+         * Prepare shipping for cart
+         *
+         * @param $order
+         * @return array
+         */
+        private function _prepare_shipping_for_cart($order)
+        {
+            $shipping = $order->get_items('shipping');
+            $hasShipping = (bool)count($shipping);
+
+            $lines = array();
+            if ($hasShipping) {
+
+                $shipping_key = key($shipping);
+
+                $item = array();
+                $item['product'] = $shipping[$shipping_key]['name'];
+                $item['quantity'] = (int)1;
+
+                $amount = $order->get_total_shipping() + $order->get_shipping_tax();
+                if ($amount <= 0) {
+                    return $lines;
+                }
+                $item['price'] = $this->_prepare_amount($amount);
+
+                // 0.18 * 100
+                $tax = $order->get_shipping_tax() / $order->get_total_shipping() * 100;
+                $shipping_tax = (int)$tax;
+
+                if (!empty($tax)) {
+                    $taxMode = array(
+                        'type' => 'InvoiceLineTaxVAT',
+                        'rate' => $this->_get_tax_rate($shipping_tax),
+                    );
+                    $item['taxMode'] = $taxMode;
+                }
+                $lines[] = $item;
+            }
+
+            return $lines;
+        }
+
+        /**
+         * Get tax rate
+         *
+         * @param $rate
+         * @return null|string
+         */
+        private function _get_tax_rate($rate)
+        {
+            switch ($rate) {
+                // VAT check at the rate 0%;
+                case 0:
+                    return '0%';
+                    break;
+                // VAT check at the rate 10%;
+                case 10:
+                    return '10%';
+                    break;
+                // VAT check at the rate 18%;
+                case 18:
+                    return '18%';
+                    break;
+                default: # — without VAT;
+                    return null;
+                    break;
+            }
+        }
+
         private function _prepare_api_url($path = '', $query_params = [])
         {
             $url = rtrim(static::API_URL, '/') . '/' . $path;
@@ -585,11 +702,14 @@ function rbkmoney_add_gateway_class()
 
         private function _prepare_metadata($order)
         {
+            global $wp_version;
             return [
                 'cms' => 'wordpress',
                 'module' => 'wp-woo-commerce',
                 'plugin' => 'rbkmoney_payment',
-                'version' => $order->version,
+                'plugin_version' => static::PLUGIN_VERSION,
+                'wordpress' => $wp_version,
+                'woo_commerce' => $order->version,
                 'order_id' => $order->id,
             ];
         }
@@ -606,7 +726,7 @@ function rbkmoney_add_gateway_class()
 
             $headers = [];
             $headers[] = 'X-Request-ID: ' . uniqid();
-            $headers[] = 'Authorization: Bearer ' . $private_key;
+            $headers[] = 'Authorization: Bearer ' . trim($private_key);
             $headers[] = 'Content-type: application/json; charset=utf-8';
             $headers[] = 'Accept: application/json';
             return $headers;
@@ -614,21 +734,18 @@ function rbkmoney_add_gateway_class()
 
         public function url_safe_b64decode($string)
         {
-            $data = str_replace(array('-', '_'), array('+', '/'), $string);
-            $mod4 = strlen($data) % 4;
-            if ($mod4) {
-                $data .= substr('====', $mod4);
-            }
-            return base64_decode($data);
+            return base64_decode(strtr($string, '-_,', '+/='));
         }
 
-        public function get_parameters_content_signature($content_signature)
+        function get_signature_from_header($contentSignature)
         {
-            preg_match_all(static::SIGNATURE_PATTERN, $content_signature, $matches, PREG_PATTERN_ORDER);
-            $params = array();
-            $params[static::SIGNATURE_ALG] = !empty($matches[1][0]) ? $matches[1][0] : '';
-            $params[static::SIGNATURE_DIGEST] = !empty($matches[2][0]) ? $matches[2][0] : '';
-            return $params;
+            $signature = preg_replace(static::SIGNATURE_PATTERN, '', $contentSignature);
+
+            if (empty($signature)) {
+                throw new Exception(__('Сигнатура отсутствует', $this->id));
+            }
+
+            return $signature;
         }
 
         public function verification_signature($data, $signature, $public_key)
