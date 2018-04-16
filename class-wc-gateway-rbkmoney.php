@@ -16,7 +16,7 @@ add_filter('plugin_action_links_' . plugin_basename(__FILE__), 'rbkmoney_action_
 function rbkmoney_action_links($links)
 {
     $plugin_links = array(
-        '<a href="' . admin_url('admin.php?page=wc-settings&tab=checkout&section=wc_gateway_rbkmoney', 'rbkmoney') . '">' . __('Настройки', 'rbkmoney') . '</a>',
+        '<a href="' . admin_url('admin.php?page=wc-settings&tab=checkout&section=rbkmoney', 'rbkmoney') . '">' . __('Настройки', 'rbkmoney') . '</a>',
     );
 
     // Merge our new link with the default ones
@@ -456,7 +456,7 @@ function rbkmoney_add_gateway_class()
                     'type' => 'checkbox',
                     'label' => __('Включить логирование', $this->id),
                     'default' => 'no',
-                    'description' => sprintf(__('Журнал событий: %s', $this->id), '<code>' . wc_get_log_file_path($this->id) . '</code>'),
+                    'description' => sprintf(__('Журнал событий: %s', $this->id), '<code>' . WC_Log_Handler_File::get_log_file_path($this->id) . '</code>'),
                 ),
 
             );
