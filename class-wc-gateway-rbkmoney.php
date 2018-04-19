@@ -326,9 +326,18 @@ function rbkmoney_add_gateway_class()
             $allowed_event_types = [static::EVENT_TYPE_INVOICE_PAID, static::EVENT_TYPE_INVOICE_CANCELLED];
             $not_allowed_statuses = ['completed', 'cancelled'];
             if (!in_array($order->status, $not_allowed_statuses) && in_array($data[static::EVENT_TYPE], $allowed_event_types)) {
-                $order->add_order_note(sprintf(__('Платеж подтвержден', $this->id) . '(invoice ID: %1$s)', $data[static::INVOICE][static::INVOICE_ID]));
-                $order->payment_complete($data[static::INVOICE][static::INVOICE_ID]);
-                $message = __('Платеж подтвержден', $this->id) . ', invoice ID: ' . $data[static::INVOICE][static::INVOICE_ID];
+
+                if($data[static::EVENT_TYPE] == static::EVENT_TYPE_INVOICE_PAID) {
+                    $order->add_order_note(sprintf(__('Платеж подтвержден', $this->id) . '(invoice ID: %1$s)', $data[static::INVOICE][static::INVOICE_ID]));
+                    $order->payment_complete($data[static::INVOICE][static::INVOICE_ID]);
+                    $message = __('Платеж подтвержден', $this->id) . ', invoice ID: ' . $data[static::INVOICE][static::INVOICE_ID];
+                }
+
+                if($data[static::EVENT_TYPE] == static::EVENT_TYPE_INVOICE_CANCELLED) {
+                    $order->update_status('cancelled', sprintf(__('Платеж отменен', $this->id) . '(invoice ID: %1$s)', $data[static::INVOICE][static::INVOICE_ID]));
+                    $message = __('Платеж отменен', $this->id) . ', invoice ID: ' . $data[static::INVOICE][static::INVOICE_ID];
+                }
+
                 $this->output($message, $logs, self::HTTP_CODE_OK);
             }
 
