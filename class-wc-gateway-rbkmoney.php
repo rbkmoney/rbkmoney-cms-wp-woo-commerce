@@ -491,8 +491,8 @@ function rbkmoney_add_gateway_class()
             $order = wc_get_order($order_id);
 
 
-            // Mark as on-hold (we're awaiting the cheque)
-            $order->update_status('on-hold', _x('Awaiting check payment', 'Check payment method', 'woocommerce'));
+            // Mark as pending
+            $order->update_status('pending', _x('Order received (unpaid)', 'Check payment method', 'woocommerce'));
 
             // Reduce stock levels
             wc_reduce_stock_levels($order_id);
