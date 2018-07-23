@@ -3,7 +3,7 @@
 Plugin Name: WooCommerce RBKmoney Payment Gateway
 Plugin URI: https://www.rbk.money
 Description: RBKmoney Payment gateway for woocommerce
-Version: 1.0.3
+Version: 1.0.4
 Author: RBKmoney
 Author URI: https://www.rbk.money
 */
@@ -50,7 +50,7 @@ function rbkmoney_add_gateway_class()
      *
      * @class       WC_RBKmoney_Gateway
      * @extends     WC_Payment_Gateway
-     * @version     1.0.3
+     * @version     1.0.4
      * @package     WooCommerce/Classes/Payment
      * @author      RBKmoney
      *
@@ -70,7 +70,7 @@ function rbkmoney_add_gateway_class()
         // ------------------------------------------------------------------------
 
         const GATEWAY_NAME = 'RBKmoney';
-        const PLUGIN_VERSION = '1.0.3';
+        const PLUGIN_VERSION = '1.0.4';
 
         /**
          * URL-s
@@ -613,11 +613,16 @@ function rbkmoney_add_gateway_class()
                 $product_tax = (int)$tax;
 
                 if (!empty($product_tax)) {
-                    $taxMode = array(
-                        'type' => 'InvoiceLineTaxVAT',
-                        'rate' => $this->_get_tax_rate($product_tax),
-                    );
-                    $item['taxMode'] = $taxMode;
+
+                    $tax_rate = $this->_get_tax_rate($product_tax);
+                    if($tax_rate != null) {
+                        $tax_mode = array(
+                            'type' => 'InvoiceLineTaxVAT',
+                            'rate' => $tax_rate,
+                        );
+                        $item['taxMode'] = $tax_mode;
+                    }
+
                 }
                 $lines[] = $item;
             }
@@ -656,11 +661,16 @@ function rbkmoney_add_gateway_class()
                 $shipping_tax = (int)$tax;
 
                 if (!empty($tax)) {
-                    $taxMode = array(
-                        'type' => 'InvoiceLineTaxVAT',
-                        'rate' => $this->_get_tax_rate($shipping_tax),
-                    );
-                    $item['taxMode'] = $taxMode;
+
+                    $tax_rate = $this->_get_tax_rate($shipping_tax);
+                    if($tax_rate != null) {
+                        $tax_mode = array(
+                            'type' => 'InvoiceLineTaxVAT',
+                            'rate' => $tax_rate,
+                        );
+                        $item['taxMode'] = $tax_mode;
+                    }
+
                 }
                 $lines[] = $item;
             }
