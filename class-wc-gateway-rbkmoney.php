@@ -76,7 +76,7 @@ function rbkmoney_add_gateway_class()
          * URL-s
          */
         const PAYMENT_FORM_URL = 'https://checkout.rbk.money/checkout.js';
-        const API_URL = 'https://api.rbk.money/v1/';
+        const API_URL = 'https://api.rbk.money/v2/';
 
         /**
          * HTTP METHOD
