@@ -3,7 +3,7 @@
 Plugin Name: WooCommerce RBKmoney Payment Gateway
 Plugin URI: https://www.rbk.money
 Description: RBKmoney Payment gateway for woocommerce
-Version: 1.0.4
+Version: 1.0.5
 Author: RBKmoney
 Author URI: https://www.rbk.money
 */
@@ -50,7 +50,7 @@ function rbkmoney_add_gateway_class()
      *
      * @class       WC_RBKmoney_Gateway
      * @extends     WC_Payment_Gateway
-     * @version     1.0.4
+     * @version     1.0.5
      * @package     WooCommerce/Classes/Payment
      * @author      RBKmoney
      *
@@ -70,7 +70,7 @@ function rbkmoney_add_gateway_class()
         // ------------------------------------------------------------------------
 
         const GATEWAY_NAME = 'RBKmoney';
-        const PLUGIN_VERSION = '1.0.4';
+        const PLUGIN_VERSION = '1.0.5';
 
         /**
          * URL-s
@@ -86,8 +86,9 @@ function rbkmoney_add_gateway_class()
         /**
          * Create invoice settings
          */
+
         const CREATE_INVOICE_TEMPLATE_DUE_DATE = 'Y-m-d\TH:i:s\Z';
-        const CREATE_INVOICE_DUE_DATE = '+1 days';
+        const CREATE_INVOICE_DUE_DATE_DEFAULT_VALUE = 24;
 
         /**
          * HTTP status code
@@ -329,7 +330,8 @@ function rbkmoney_add_gateway_class()
 
                 if($data[static::EVENT_TYPE] == static::EVENT_TYPE_INVOICE_PAID) {
                     $order->add_order_note(sprintf(__('Платеж подтвержден', $this->id) . '(invoice ID: %1$s)', $data[static::INVOICE][static::INVOICE_ID]));
-                    $order->payment_complete($data[static::INVOICE][static::INVOICE_ID]);
+                    $status_order_paid=$this->get_option('status_order_paid');
+                    $order->update_status($status_order_paid, sprintf(__('Платеж оплачен', $this->id) . '(invoice ID: %1$s)', $data[static::INVOICE][static::INVOICE_ID]));
                     $message = __('Платеж подтвержден', $this->id) . ', invoice ID: ' . $data[static::INVOICE][static::INVOICE_ID];
                 }
 
@@ -460,6 +462,42 @@ function rbkmoney_add_gateway_class()
                     'desc_tip' => true,
                 ),
 
+                'status_start_payment' => array(
+                    'title' => __('Статус заказа при инициализации платежа', $this->id),
+                    'description' => __('Статус устанавливается после подтверждения заказа', $this->id),
+                    'type' => 'select',
+                    'default' =>  __('pending', $this->id),
+                    'options'     =>
+                     array(
+                        'wc-pending'    => _x( 'Pending payment', 'Order status', 'woocommerce' ),
+                        'wc-processing' => _x( 'Processing', 'Order status', 'woocommerce' ),
+                        'wc-on-hold'    => _x( 'On hold', 'Order status', 'woocommerce' )
+                    ),
+                    'desc_tip' => true,
+                ),
+
+                'status_order_paid' => array(
+                    'title' => __('Статус заказа после оплаты', $this->id),
+                    'description' => __('Статус устанавливается после успешной оплаты заказа', $this->id),
+                    'type' => 'select',
+                    'default' =>  __('completed', $this->id),
+                    'options'     =>
+                     array(
+                        'wc-processing' => _x( 'Processing', 'Order status', 'woocommerce' ),
+                        'wc-on-hold'    => _x( 'On hold', 'Order status', 'woocommerce' ),
+                        'wc-completed'  => _x( 'Completed', 'Order status', 'woocommerce' )
+                    ),
+                    'desc_tip' => true,
+                ),
+
+                'order_lifetime' => array(
+                    'title' => __('Время жизни заказа в часах', $this->id),
+                    'description' => __('Время жизни заказа (в часах)', $this->id),
+                    'type' => 'number',
+                    'default' =>  __('24', $this->id),
+                    'desc_tip' => true,
+                ),
+
                 'debug' => array(
                     'title' => __('Журнал отладки', $this->id),
                     'type' => 'checkbox',
@@ -471,6 +509,7 @@ function rbkmoney_add_gateway_class()
             );
 
         }
+
 
         /**
          * Process Payment.
@@ -492,7 +531,9 @@ function rbkmoney_add_gateway_class()
 
 
             // Mark as pending
-            $order->update_status('pending', _x('Order received (unpaid)', 'Check payment method', 'woocommerce'));
+            $status_start_payment=$this->get_option('status_start_payment');
+            $order->update_status($status_start_payment, _x('Order received (unpaid)', 'Check payment method', 'woocommerce'));
+
 
             // Reduce stock levels
             wc_reduce_stock_levels($order_id);
@@ -736,7 +777,11 @@ function rbkmoney_add_gateway_class()
         private function _prepare_due_date()
         {
             date_default_timezone_set('UTC');
-            return date(static::CREATE_INVOICE_TEMPLATE_DUE_DATE, strtotime(static::CREATE_INVOICE_DUE_DATE));
+            $order_lifetime = $this->get_option('order_lifetime');
+            if (empty($order_lifetime)) {
+                $order_lifetime=static::CREATE_INVOICE_DUE_DATE_DEFAULT_VALUE;
+            }
+            return date(static::CREATE_INVOICE_TEMPLATE_DUE_DATE, strtotime('+'.$order_lifetime.'hour'));
         }
 
         private function _get_headers()
