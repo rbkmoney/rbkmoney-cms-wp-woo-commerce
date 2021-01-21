@@ -3,7 +3,7 @@
 Plugin Name: WooCommerce RBKmoney Payment Gateway
 Plugin URI: https://www.rbk.money
 Description: RBKmoney Payment gateway for woocommerce
-Version: 1.0.5
+Version: 1.0.6
 Author: RBKmoney
 Author URI: https://www.rbk.money
 */
@@ -50,7 +50,7 @@ function rbkmoney_add_gateway_class()
      *
      * @class       WC_RBKmoney_Gateway
      * @extends     WC_Payment_Gateway
-     * @version     1.0.5
+     * @version     1.0.6
      * @package     WooCommerce/Classes/Payment
      * @author      RBKmoney
      *
@@ -70,7 +70,7 @@ function rbkmoney_add_gateway_class()
         // ------------------------------------------------------------------------
 
         const GATEWAY_NAME = 'RBKmoney';
-        const PLUGIN_VERSION = '1.0.5';
+        const PLUGIN_VERSION = '1.0.6';
 
         /**
          * URL-s
@@ -697,7 +697,7 @@ function rbkmoney_add_gateway_class()
                 }
                 $item['price'] = $this->_prepare_amount($amount);
 
-                // 0.18 * 100
+                // 0.20 * 100
                 $tax = $order->get_shipping_tax() / $order->get_total_shipping() * 100;
                 $shipping_tax = (int)$tax;
 
@@ -736,9 +736,9 @@ function rbkmoney_add_gateway_class()
                 case 10:
                     return '10%';
                     break;
-                // VAT check at the rate 18%;
-                case 18:
-                    return '18%';
+                // VAT check at the rate 20%;
+                case 20:
+                    return '20%';
                     break;
                 default: # — without VAT;
                     return null;
@@ -757,7 +757,8 @@ function rbkmoney_add_gateway_class()
 
         private function _prepare_amount($amount)
         {
-            return $amount * 100;
+            $prepare_amount = $amount * 100;
+            return (int)$prepare_amount;
         }
 
         private function _prepare_metadata($order)
