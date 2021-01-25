@@ -3,7 +3,7 @@
 Plugin Name: WooCommerce RBKmoney Payment Gateway
 Plugin URI: https://www.rbk.money
 Description: RBKmoney Payment gateway for woocommerce
-Version: 1.0.6
+Version: 1.0.7
 Author: RBKmoney
 Author URI: https://www.rbk.money
 */
@@ -50,7 +50,7 @@ function rbkmoney_add_gateway_class()
      *
      * @class       WC_RBKmoney_Gateway
      * @extends     WC_Payment_Gateway
-     * @version     1.0.6
+     * @version     1.0.7
      * @package     WooCommerce/Classes/Payment
      * @author      RBKmoney
      *
@@ -70,7 +70,7 @@ function rbkmoney_add_gateway_class()
         // ------------------------------------------------------------------------
 
         const GATEWAY_NAME = 'RBKmoney';
-        const PLUGIN_VERSION = '1.0.6';
+        const PLUGIN_VERSION = '1.0.7';
 
         /**
          * URL-s
@@ -757,7 +757,8 @@ function rbkmoney_add_gateway_class()
 
         private function _prepare_amount($amount)
         {
-            return number_format($amount, 2, '', '');
+            $prepare_amount = number_format($amount, 2, '', '');
+            return (int)$prepare_amount;
         }
 
         private function _prepare_metadata($order)
