@@ -757,7 +757,7 @@ function rbkmoney_add_gateway_class()
 
         private function _prepare_amount($amount)
         {
-            return number_format($amount, 2, '.', '');
+            return number_format($amount, 2, '', '');
         }
 
         private function _prepare_metadata($order)
